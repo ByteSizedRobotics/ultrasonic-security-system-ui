@@ -7,40 +7,96 @@ from bleak import BleakClient
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
+import numpy as np
 import plotly.graph_objects as go
 
 CHARACTERISTIC_UUID = "abcdefab-1234-1234-1234-1234567890ab"
-device_address = "18:8b:0e:a9:a8:d6"
-previous_angle = 0
-current_angle = 0
-current_distance = 0
-move_forward = True
-angles = []
-distances = []
+DEVICE_ADDRESS = "18:8b:0e:a9:a8:d6"
+
+TEST_ANGLE_INCREMENT = 2.5
+UPDATE_INTERVAL = 125.0
+
+
+class SensorData:
+    def __init__(self):
+        self.previous_angle = 0
+        self.current_angle = 0
+        self.current_distance = 0
+        self.move_forward = True
+        self.angles = []
+        self.distances = []
+        # self.timestamps = []
+        # self.timestamp_id = 0
+
+    def test_tick_data(self):
+        sensor_data.previous_angle = sensor_data.current_angle
+        delta_distance = (
+            random.randint(-3, 2)
+            if self.current_distance > 50
+            else random.randint(-2, 3)
+        )
+        self.current_distance = max(0, min(self.current_distance + delta_distance, 100))
+        if self.move_forward:
+            self.current_angle += TEST_ANGLE_INCREMENT
+            if self.current_angle >= 180.0:
+                self.current_angle = 180.0
+                self.move_forward = False
+        else:
+            self.current_angle -= TEST_ANGLE_INCREMENT
+            if self.current_angle <= 0.0:
+                self.current_angle = 0.0
+                self.move_forward = True
+
+    def update(self):
+        left_idx = 0
+        right_idx = 0
+        if self.previous_angle <= self.current_angle:
+            left_idx = bisect.bisect_left(self.angles, self.previous_angle) + 1
+            right_idx = bisect.bisect_right(self.angles, self.current_angle)
+        else:
+            left_idx = bisect.bisect_left(self.angles, self.current_angle)
+            right_idx = bisect.bisect_right(self.angles, self.previous_angle) - 1
+
+        print(f"left_idx {left_idx} right_idx {right_idx}")
+
+        self.angles = self.angles[:left_idx] + self.angles[right_idx:]
+        self.distances = self.distances[:left_idx] + self.distances[right_idx:]
+        # self.timestamps = self.timestamps[:left_idx] + self.timestamps[right_idx:]
+
+        insert_idx = bisect.bisect_left(self.angles, self.current_angle)
+        self.angles.insert(insert_idx, self.current_angle)
+        self.distances.insert(insert_idx, self.current_distance)
+        # self.timestamps.insert(insert_idx, self.timestamp_id)
+        # self.timestamp_id += 1
+
+
+sensor_data = SensorData()
 
 app = dash.Dash(__name__)
 
 app.layout = html.Div(
     [
-        html.H1("Bluetooth Radar Data"),
+        html.H1("Ultrasonic Radar Map"),
         dcc.Graph(id="radar-chart", style={"height": "500px"}),
-        dcc.Interval(id="radar-interval", interval=1000, n_intervals=0),
+        dcc.Interval(id="radar-interval", interval=UPDATE_INTERVAL, n_intervals=0),
     ]
 )
 
 
 # Define a function to handle Bluetooth notifications
 def notification_handler(sender: int, data: bytearray):
-    global current_angle, current_distance
+    global sensor_data
     if len(data) == 8:
-        current_angle, current_distance = struct.unpack("if", data)
+        sensor_data.current_angle, sensor_data.current_distance = struct.unpack(
+            "if", data
+        )
     else:
         print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
 
 
 # Bluetooth communication logic
 async def bluetooth_run():
-    async with BleakClient(device_address) as client:
+    async with BleakClient(DEVICE_ADDRESS) as client:
         print(f"Connected: {client.is_connected}")
         await client.start_notify(CHARACTERISTIC_UUID, notification_handler)
 
@@ -63,61 +119,47 @@ def start_bluetooth():
 # Update the radar chart with new data
 @app.callback(Output("radar-chart", "figure"), Input("radar-interval", "n_intervals"))
 def update_radar_chart(n_intervals):
-    global previous_angle, current_angle, current_distance, angles, distances
+    global sensor_data
 
-    # TESTING data
-    previous_angle = current_angle
-    delta_distance = (
-        random.randint(-12, 10) if current_distance > 50 else random.randint(-8, 10)
+    sensor_data.test_tick_data()
+
+    print(
+        f"previous_angle {sensor_data.previous_angle} current_angle {sensor_data.current_angle} current_distance {sensor_data.current_distance}"
     )
-    current_distance = max(0, min(current_distance + delta_distance, 100))
-    if move_forward == 1:
-        current_angle += 10.0
-        if current_angle >= 180.0:
-            current_angle = 180.0
-    else:
-        current_angle -= 10.0
-        if current_angle <= 0.0:
-            current_angle = 0.0
 
-
-    print(f"previous_angle {previous_angle} current_angle {current_angle} current_distance {current_distance}")
-
-    # This assumes the angle increases
-    print(angles)
-    print(distances)
-    left_idx = bisect.bisect_left(angles, previous_angle) + 1
-    right_idx = bisect.bisect_right(angles, current_angle)
-    print(f"left_idx {left_idx} right_idx {right_idx}")
-    angles = angles[:left_idx] + angles[right_idx:]
-    distances = distances[:left_idx] + distances[right_idx:]
-    print(angles)
-    print(distances)
-
-    insert_idx = bisect.bisect_left(angles, current_angle)
-    angles.insert(insert_idx, current_angle)
-    distances.insert(insert_idx, current_distance)
+    sensor_data.update()
+    print(sensor_data.angles)
+    print(sensor_data.distances)
+    # print(sensor_data.timestamps)
+    print()
 
     fig = go.Figure(
         go.Scatterpolar(
-            r=distances,
-            theta=angles,
+            r=sensor_data.distances,
+            theta=sensor_data.angles,
+            marker=dict(size=2, color="green"),
         )
     )
 
     fig.add_trace(
         go.Scatterpolar(
-            r=[distances[insert_idx]],
-            theta=[angles[insert_idx]],
+            r=[sensor_data.current_distance],
+            theta=[sensor_data.current_angle],
             mode="markers+text",
             marker=dict(size=8, color="green"),
-            text=[f"Angle: {current_angle}, Distance: {current_distance:.2f} cm"],
+            text=[
+                f"Angle: {sensor_data.current_angle}, Distance: {sensor_data.current_distance:.2f} cm"
+            ],
             textposition="top center",
         )
     )
 
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=False
+        polar=dict(
+            sector=[0, 180],
+            radialaxis=dict(visible=True, range=[0, 100]),
+        ),
+        showlegend=False,
     )
 
     return fig
