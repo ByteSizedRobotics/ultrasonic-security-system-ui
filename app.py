@@ -192,12 +192,14 @@ def update_radar_chart(n_intervals):
 def update_warning(n_intervals):
     global sensor_data
 
+    msg = ""
 
-    return (
-        "⚠️ Warning: Object detected"
-        if sensor_data.current_distance == -2
-        else ""
-    )
+    if sensor_data.current_distance < 0:
+        msg = "Object out of range"
+    elif sensor_data.current_distance < 10:
+        msg = "⚠️ Warning: Object too close"
+
+    return msg
 
 
 if __name__ == "__main__":
