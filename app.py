@@ -83,7 +83,6 @@ app.layout = html.Div(
 )
 
 
-# Define a function to handle Bluetooth notifications
 def notification_handler(sender: int, data: bytearray):
     global sensor_data
     if len(data) == 8:
@@ -94,34 +93,30 @@ def notification_handler(sender: int, data: bytearray):
         print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
 
 
-# Bluetooth communication logic
 async def bluetooth_run():
     async with BleakClient(DEVICE_ADDRESS) as client:
         print(f"Connected: {client.is_connected}")
         await client.start_notify(CHARACTERISTIC_UUID, notification_handler)
 
-        # Keep the connection alive
         while True:
             await asyncio.sleep(1)
 
 
-# Start Bluetooth in a separate thread
 def start_bluetooth():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(bluetooth_run())
 
 
-# bluetooth_thread = threading.Thread(target=start_bluetooth, daemon=True)
-# bluetooth_thread.start()
+bluetooth_thread = threading.Thread(target=start_bluetooth, daemon=True)
+bluetooth_thread.start()
 
 
-# Update the radar chart with new data
 @app.callback(Output("radar-chart", "figure"), Input("radar-interval", "n_intervals"))
 def update_radar_chart(n_intervals):
     global sensor_data
 
-    sensor_data.test_tick_data()
+    # sensor_data.test_tick_data()
 
     print(
         f"previous_angle {sensor_data.previous_angle} current_angle {sensor_data.current_angle} current_distance {sensor_data.current_distance}"
@@ -165,6 +160,5 @@ def update_radar_chart(n_intervals):
     return fig
 
 
-# Run the Dash app
 if __name__ == "__main__":
     app.run_server(debug=True, use_reloader=False)
