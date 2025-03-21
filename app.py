@@ -16,6 +16,8 @@ DEVICE_ADDRESS = "18:8b:0e:a9:a8:d6"
 
 TEST_ANGLE_INCREMENT = 2.5
 UPDATE_INTERVAL = 125.0
+WARNING_DISTANCE = 30
+DISTANCE_RANGE = 50
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser()
@@ -178,7 +180,7 @@ def update_radar_chart(n_intervals):
         fig.update_layout(
             polar=dict(
                 sector=[0, 90],
-                radialaxis=dict(visible=True, range=[0, 50]),
+                radialaxis=dict(visible=True, range=[0, DISTANCE_RANGE]),
             ),
             showlegend=False,
         )
@@ -196,7 +198,7 @@ def update_warning(n_intervals):
 
     if sensor_data.current_distance < 0:
         msg = "Object out of range"
-    elif sensor_data.current_distance < 10:
+    elif sensor_data.current_distance < WARNING_DISTANCE:
         msg = "⚠️ Warning: Object too close"
 
     return msg
