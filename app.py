@@ -264,7 +264,7 @@ def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sl
     # Extract numeric values from the selected settings
     try:
         dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else None
-        speed_value = motor_speed.split(": ")[-1] if motor_speed else None
+        speed_value = motor_speed if motor_speed in [0, 1] else None
         max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else None
         timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else None
         
