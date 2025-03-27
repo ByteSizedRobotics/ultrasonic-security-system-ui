@@ -246,11 +246,26 @@ def update_selected_settings(
         return [dash.no_update, dash.no_update, dash.no_update, 
                 f"Selected: {value} sec"]
 
+async def update_device_settings_via_bluetooth(client, speed_value, dist_value, max_detect_value, timeout_value):
+    try:
+        # Pack the data into a struct (matching the expected format on the device)
+        data = struct.pack("iiii", speed_value, dist_value, max_detect_value, timeout_value)
+        
+        # Send the data over Bluetooth
+        await client.write_gatt_char(CHARACTERISTIC_UUID, data, response=True)
+        # print("Sent device settings via Bluetooth:")
+        # print(f"Motor Speed Mode: {speed_value}")
+        # print(f"Alarm Trigger Distance: {dist_value} cm")
+        # print(f"Max Object Detection Distance: {max_detect_value} cm")
+        # print(f"Sleep Timeout: {timeout_value} sec")
+        
+        return "Settings updated successfully via Bluetooth!", {"color": "green", "fontWeight": "bold"}
+    except Exception as e:
+        return f"Error updating settings via Bluetooth: {str(e)}", {"color": "red", "fontWeight": "bold"}
+
 @app.callback(
-    [
-        Output("settings-update-status", "children"),
-        Output("settings-update-status", "style")
-    ],
+    [Output("settings-update-status", "children"),
+     Output("settings-update-status", "style")],
     Input("update-settings-btn", "n_clicks"),
     [
         State("selected-dist-threshold", "children"),
@@ -261,30 +276,26 @@ def update_selected_settings(
     prevent_initial_call=True
 )
 def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sleep_timeout):
-    # Extract numeric values from the selected settings
     try:
-        dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else None
-        speed_value = motor_speed if motor_speed in [0, 1, 2] else None
-        max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else None
-        timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else None
-        
-        # Here you would add the actual Bluetooth communication to update device
-        # For now, we'll just print the values (replace with actual Bluetooth send logic)
-        print(f"Updating device settings:")
-        print(f"Distance Threshold: {dist_value} cm")
-        print(f"Motor Speed: {speed_value}")
-        print(f"Max Detection: {max_detect_value} cm")
-        print(f"Sleep Timeout: {timeout_value} sec")
-        
-        return (
-            "Settings updated successfully!", 
-            {"color": "green", "fontWeight": "bold"}
-        )
+        dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else 30
+        speed_value = 1 if "Fast" in motor_speed else 0
+        max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 250
+        timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else 10
+
+        # Start Bluetooth communication in a separate thread
+        if not debug_mode:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            client = BleakClient(DEVICE_ADDRESS)
+            loop.run_until_complete(client.connect())
+            result = loop.run_until_complete(update_device_settings_via_bluetooth(client, dist_value, speed_value, max_detect_value, timeout_value))
+            loop.run_until_complete(client.disconnect())
+            return result
+        else:
+            print("Debug Mode: Settings update simulated.")
+            return "Settings updated in debug mode!", {"color": "blue", "fontWeight": "bold"}
     except Exception as e:
-        return (
-            f"Error updating settings: {str(e)}", 
-            {"color": "red", "fontWeight": "bold"}
-        )
+        return f"Error updating settings: {str(e)}", {"color": "red", "fontWeight": "bold"}
 
 def notification_handler(sender: int, data: bytearray):
     global sensor_data
@@ -412,7 +423,7 @@ def update_alerts(n_interval):
                 id="motor-speed",
                 color="dark",
                 className="fw-bold fs-5",
-                children=f"Motor speed: {'Normal' if sensor_data.motor_speed == 0 else 'Fast'}",
+                children=f"Motor speed mode: {'Normal' if sensor_data.motor_speed == 0 else 'Fast'}",
             ),
             dbc.Alert(
                 id="distance-threshold",
