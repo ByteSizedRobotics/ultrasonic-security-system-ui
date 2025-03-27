@@ -284,6 +284,11 @@ def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sl
 
         # Start Bluetooth communication in a separate thread
         if not debug_mode:
+            print("Updating device settings via Bluetooth...")
+            print(f"Motor Speed Mode: {speed_value}")
+            print(f"Alarm Trigger Distance: {dist_value} cm")
+            print(f"Max Object Detection Distance: {max_detect_value} cm")
+            print(f"Sleep Timeout: {timeout_value} sec")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             client = BleakClient(DEVICE_ADDRESS)
