@@ -105,7 +105,7 @@ class SensorData:
 
 sensor_data = SensorData()
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SANDSTONE])
 
 app.layout = dbc.Container(
     [
@@ -128,7 +128,7 @@ app.layout = dbc.Container(
         
         # Distance Threshold Buttons
         html.Div([
-            html.Label("Distance Threshold (cm):", className="mb-2"),
+            html.Label("Distance Threshold (cm):  ", className="mb-2"),
             dbc.ButtonGroup([
                 dbc.Button("10 cm", id="dist-threshold-10", color="secondary", outline=True),
                 dbc.Button("30 cm", id="dist-threshold-30", color="secondary", outline=True),
@@ -140,7 +140,7 @@ app.layout = dbc.Container(
         
         # Motor Speed Buttons
         html.Div([
-            html.Label("Motor Speed (RPM):", className="mb-2"),
+            html.Label("Motor Speed:  ", className="mb-2"),
             dbc.ButtonGroup([
                 dbc.Button("Normal", id="motor-speed-normal", color="secondary", outline=True),
                 dbc.Button("Fast", id="motor-speed-fast", color="secondary", outline=True),
@@ -150,7 +150,7 @@ app.layout = dbc.Container(
         
         # Max Detection Distance Buttons
         html.Div([
-            html.Label("Max Detection Distance (cm):", className="mb-2"),
+            html.Label("Max Detection Distance (cm)  :", className="mb-2"),
             dbc.ButtonGroup([
                 dbc.Button("250 cm", id="max-detect-250", color="secondary", outline=True),
                 dbc.Button("400 cm", id="max-detect-400", color="secondary", outline=True),
@@ -160,7 +160,7 @@ app.layout = dbc.Container(
         
         # Sleep Timeout Buttons
         html.Div([
-            html.Label("Sleep Timeout (sec):", className="mb-2"),
+            html.Label("Sleep Timeout (sec):  ", className="mb-2"),
             dbc.ButtonGroup([
                 dbc.Button("2 sec", id="sleep-timeout-2", color="secondary", outline=True),
                 dbc.Button("5 sec", id="sleep-timeout-5", color="secondary", outline=True),
