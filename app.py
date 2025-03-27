@@ -7,7 +7,7 @@ import threading
 from bleak import BleakClient
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 import numpy as np
 import plotly.graph_objects as go
@@ -121,12 +121,67 @@ app.layout = dbc.Container(
                     className="border border-2 border-secondary p-3 rounded-3",
                 ),
                 dbc.Col(
-                    [
-                        html.Div(id="alert-messages"),
-                    ],
-                    width=6,
-                    className="border border-2 border-awrning p-3 rounded-3 h-100",
-                ),
+    [
+        html.Div(id="alert-messages"),
+        html.Hr(),
+        html.H4("Device Settings", className="text-center mb-3"),
+        
+        # Distance Threshold Buttons
+        html.Div([
+            html.Label("Distance Threshold (cm):", className="mb-2"),
+            dbc.ButtonGroup([
+                dbc.Button("10 cm", id="dist-threshold-10", color="secondary", outline=True),
+                dbc.Button("30 cm", id="dist-threshold-30", color="secondary", outline=True),
+                dbc.Button("50 cm", id="dist-threshold-50", color="secondary", outline=True),
+                dbc.Button("100 cm", id="dist-threshold-100", color="secondary", outline=True),
+            ], className="mb-3"),
+            html.Div(id="selected-dist-threshold", className="text-muted mb-3")
+        ]),
+        
+        # Motor Speed Buttons
+        html.Div([
+            html.Label("Motor Speed (RPM):", className="mb-2"),
+            dbc.ButtonGroup([
+                dbc.Button("Normal", id="motor-speed-normal", color="secondary", outline=True),
+                dbc.Button("Fast", id="motor-speed-fast", color="secondary", outline=True),
+            ], className="mb-3"),
+            html.Div(id="selected-motor-speed", className="text-muted mb-3")
+        ]),
+        
+        # Max Detection Distance Buttons
+        html.Div([
+            html.Label("Max Detection Distance (cm):", className="mb-2"),
+            dbc.ButtonGroup([
+                dbc.Button("250 cm", id="max-detect-250", color="secondary", outline=True),
+                dbc.Button("400 cm", id="max-detect-400", color="secondary", outline=True),
+            ], className="mb-3"),
+            html.Div(id="selected-max-detect", className="text-muted mb-3")
+        ]),
+        
+        # Sleep Timeout Buttons
+        html.Div([
+            html.Label("Sleep Timeout (sec):", className="mb-2"),
+            dbc.ButtonGroup([
+                dbc.Button("2 sec", id="sleep-timeout-2", color="secondary", outline=True),
+                dbc.Button("5 sec", id="sleep-timeout-5", color="secondary", outline=True),
+                dbc.Button("10 sec", id="sleep-timeout-10", color="secondary", outline=True),
+                dbc.Button("30 sec", id="sleep-timeout-30", color="secondary", outline=True),
+            ], className="mb-3"),
+            html.Div(id="selected-sleep-timeout", className="text-muted mb-3")
+        ]),
+        
+        # Update Button
+        dbc.Button(
+            "Update Device Settings", 
+            id="update-settings-btn", 
+            color="primary", 
+            className="mt-3 w-100"
+        ),
+        html.Div(id="settings-update-status", className="mt-2 text-center")
+    ],
+    width=6,
+    className="border border-2 border-warning p-3 rounded-3 h-100",
+),
             ],
             className="g-4 h-100",
         ),
@@ -142,6 +197,94 @@ app.layout = dbc.Container(
     },
 )
 
+@app.callback(
+    [Output(f"selected-{setting}", "children") for setting in 
+     ["dist-threshold", "motor-speed", "max-detect", "sleep-timeout"]],
+    [Input(f"{setting}-{value}", "n_clicks") for setting, values in [
+        ("dist-threshold", [10, 30, 50, 100]),
+        ("motor-speed", ["normal", "fast"]),
+        ("max-detect", [250, 400]),
+        ("sleep-timeout", [2, 5, 10, 30])
+    ] for value in values],
+    prevent_initial_call=True
+)
+def update_selected_settings(
+    dist_10, dist_30, dist_50, dist_100,
+    speed_normal, speed_fast,
+    max_250, max_400,
+    timeout_2, timeout_5, timeout_10, timeout_30
+):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return [dash.no_update] * 4
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Distance Threshold
+    if button_id.startswith("dist-threshold"):
+        value = int(button_id.split("-")[-1])
+        return [f"Selected: {value} cm", 
+                dash.no_update, dash.no_update, dash.no_update]
+    
+    # Motor Speed
+    elif button_id.startswith("motor-speed"):
+        value = button_id.split("-")[-1].capitalize()
+        return [dash.no_update, 
+                f"Selected: {value}", 
+                dash.no_update, dash.no_update]
+    
+    # Max Detection
+    elif button_id.startswith("max-detect"):
+        value = int(button_id.split("-")[-1])
+        return [dash.no_update, dash.no_update, 
+                f"Selected: {value} cm", 
+                dash.no_update]
+    
+    # Sleep Timeout
+    elif button_id.startswith("sleep-timeout"):
+        value = int(button_id.split("-")[-1])
+        return [dash.no_update, dash.no_update, dash.no_update, 
+                f"Selected: {value} sec"]
+
+@app.callback(
+    [
+        Output("settings-update-status", "children"),
+        Output("settings-update-status", "style")
+    ],
+    Input("update-settings-btn", "n_clicks"),
+    [
+        State("selected-dist-threshold", "children"),
+        State("selected-motor-speed", "children"),
+        State("selected-max-detect", "children"),
+        State("selected-sleep-timeout", "children")
+    ],
+    prevent_initial_call=True
+)
+def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sleep_timeout):
+    # Extract numeric values from the selected settings
+    try:
+        dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else None
+        speed_value = motor_speed.split(": ")[-1] if motor_speed else None
+        max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else None
+        timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else None
+        
+        # Here you would add the actual Bluetooth communication to update device
+        # For now, we'll just print the values (replace with actual Bluetooth send logic)
+        print(f"Updating device settings:")
+        print(f"Distance Threshold: {dist_value} cm")
+        print(f"Motor Speed: {speed_value}")
+        print(f"Max Detection: {max_detect_value} cm")
+        print(f"Sleep Timeout: {timeout_value} sec")
+        
+        return (
+            "Settings updated successfully!", 
+            {"color": "green", "fontWeight": "bold"}
+        )
+    except Exception as e:
+        return (
+            f"Error updating settings: {str(e)}", 
+            {"color": "red", "fontWeight": "bold"}
+        )
 
 def notification_handler(sender: int, data: bytearray):
     global sensor_data
@@ -284,7 +427,6 @@ def update_alerts(n_interval):
         ]
 
         return alerts
-
 
 if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
