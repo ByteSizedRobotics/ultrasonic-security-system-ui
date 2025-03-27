@@ -405,7 +405,7 @@ def update_alerts(n_interval):
                 id="motor-speed",
                 color="dark",
                 className="fw-bold fs-5",
-                children=f"Motor speed: Normal",
+                children=f"Motor speed: {sensor_data.motor_speed}",
             ),
             dbc.Alert(
                 id="distance-threshold",
