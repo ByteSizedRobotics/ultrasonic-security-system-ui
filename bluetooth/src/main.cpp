@@ -43,21 +43,25 @@ void setup() {
 }
 
 void loop() {
-  uint8_t data[8];
-  if (Serial1.available() >= 8) {
-      Serial1.readBytes(data, 8);
+  uint8_t data[24];
+  if (Serial1.available() >= 24) {
+      Serial1.readBytes(data, 24);
 
+      // Send data over BLE
+      pCharacteristic->setValue(data, sizeof(data));
+      pCharacteristic->notify();
+
+      // Used for debugging (displays the different fields of the received data)
       int angle;
       float distance;
+      int motor_speed, alarm_threshold, max_distance, sleep_timeout;
 
       memcpy(&angle, data, sizeof(angle));
       memcpy(&distance, data + sizeof(angle), sizeof(distance));
 
       Serial.printf("Received: Angle = %d, Distance = %.2f cm\n", angle, distance);
 
-      // Send data over BLE
-      pCharacteristic->setValue(data, sizeof(data));
-      pCharacteristic->notify();
+
   }
   delay(10);
 }
