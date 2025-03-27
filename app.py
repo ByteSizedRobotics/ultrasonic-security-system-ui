@@ -288,7 +288,7 @@ def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sl
             asyncio.set_event_loop(loop)
             client = BleakClient(DEVICE_ADDRESS)
             loop.run_until_complete(client.connect())
-            result = loop.run_until_complete(update_device_settings_via_bluetooth(client, dist_value, speed_value, max_detect_value, timeout_value))
+            result = loop.run_until_complete(update_device_settings_via_bluetooth(client, speed_value, dist_value, max_detect_value, timeout_value))
             loop.run_until_complete(client.disconnect())
             return result
         else:
