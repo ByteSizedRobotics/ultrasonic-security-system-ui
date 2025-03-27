@@ -13,7 +13,9 @@ import numpy as np
 import plotly.graph_objects as go
 
 
-CHARACTERISTIC_UUID = "abcdefab-1234-1234-1234-1234567890ab"
+# CHARACTERISTIC_UUID = "12345678-1234-5678-1234-56789abcdef0"
+RX_CHARACTERISTIC_UUID = "abcd1234-5678-1234-5678-abcdef123456"  # Send to ESP32
+TX_CHARACTERISTIC_UUID = "dcba4321-8765-4321-8765-654321fedcba"  # Receive from ESP32
 DEVICE_ADDRESS = "18:8b:0e:a9:a8:d6"
 
 TEST_ANGLE_INCREMENT = 2.5
@@ -252,12 +254,12 @@ async def update_device_settings_via_bluetooth(client, speed_value, dist_value, 
         data = struct.pack("iiii", speed_value, dist_value, max_detect_value, timeout_value)
         
         # Send the data over Bluetooth
-        await client.write_gatt_char(CHARACTERISTIC_UUID, data, response=True)
-        # print("Sent device settings via Bluetooth:")
-        # print(f"Motor Speed Mode: {speed_value}")
-        # print(f"Alarm Trigger Distance: {dist_value} cm")
-        # print(f"Max Object Detection Distance: {max_detect_value} cm")
-        # print(f"Sleep Timeout: {timeout_value} sec")
+        await client.write_gatt_char(RX_CHARACTERISTIC_UUID, data, response=True)
+        print("Sent device settings via Bluetooth:")
+        print(f"Alarm Trigger Distance: {dist_value} cm")
+        print(f"Motor Speed Mode: {speed_value}")
+        print(f"Max Object Detection Distance: {max_detect_value} cm")
+        print(f"Sleep Timeout: {timeout_value} sec")
         
         return "Settings updated successfully via Bluetooth!", {"color": "green", "fontWeight": "bold"}
     except Exception as e:
@@ -275,45 +277,27 @@ async def update_device_settings_via_bluetooth(client, speed_value, dist_value, 
     ],
     prevent_initial_call=True
 )
-# Modify the update_device_settings function to use get_bluetooth_client
 def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sleep_timeout):
     try:
-        # Default values if not selected
         dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else 30
         speed_value = 1 if "Fast" in motor_speed else 0
         max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 250
         timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else 10
 
+        # Start Bluetooth communication in a separate thread
         if not debug_mode:
-            print("Updating device settings via Bluetooth...")
-            print(f"Motor Speed Mode: {speed_value}")
-            print(f"Alarm Trigger Distance: {dist_value} cm")
-            print(f"Max Object Detection Distance: {max_detect_value} cm")
-            print(f"Sleep Timeout: {timeout_value} sec")
-            async def perform_update():
-                try:
-                    client = await get_bluetooth_client()
-                    if not client:
-                        return "Failed to get Bluetooth client", {"color": "red", "fontWeight": "bold"}
-                    
-                    result = await update_device_settings_via_bluetooth(
-                        client, speed_value, dist_value, max_detect_value, timeout_value
-                    )
-                    return result
-                except Exception as e:
-                    return f"Bluetooth update error: {str(e)}", {"color": "red", "fontWeight": "bold"}
-            
-            # Run async function in event loop
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(perform_update())
+            client = BleakClient(DEVICE_ADDRESS)
+            loop.run_until_complete(client.connect())
+            result = loop.run_until_complete(update_device_settings_via_bluetooth(client, speed_value, dist_value, max_detect_value, timeout_value))
+            loop.run_until_complete(client.disconnect())
             return result
         else:
             print("Debug Mode: Settings update simulated.")
             return "Settings updated in debug mode!", {"color": "blue", "fontWeight": "bold"}
-    
     except Exception as e:
-        return f"Error processing settings: {str(e)}", {"color": "red", "fontWeight": "bold"}
+        return f"Error updating settings: {str(e)}", {"color": "red", "fontWeight": "bold"}
 
 def notification_handler(sender: int, data: bytearray):
     global sensor_data
@@ -324,76 +308,21 @@ def notification_handler(sender: int, data: bytearray):
         print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
 
 
-async def bluetooth_connect():
-    """
-    Establishes a Bluetooth connection that can be used for both 
-    receiving notifications and sending commands.
-    """
-    try:
-        client = BleakClient(DEVICE_ADDRESS)
-        await client.connect()
-        print(f"Bluetooth connected: {client.is_connected}")
-        
-        # Start notifications
-        await client.start_notify(CHARACTERISTIC_UUID, notification_handler)
-        
-        return client
-    except Exception as e:
-        print(f"Bluetooth connection error: {e}")
-        return None
-
 async def bluetooth_run():
-    """
-    Manages the Bluetooth connection with proper error handling and reconnection.
-    """
-    while not debug_mode:
-        client = await bluetooth_connect()
-        if client:
-            try:
-                # Keep connection alive without blocking completely
-                while client.is_connected:
-                    await asyncio.sleep(1)
-            except Exception as e:
-                print(f"Bluetooth connection lost: {e}")
-            finally:
-                await client.disconnect()
-        
-        # Wait before attempting to reconnect
-        await asyncio.sleep(5)
+    async with BleakClient(DEVICE_ADDRESS) as client:
+        print(f"Connected: {client.is_connected}")
+        await client.start_notify(TX_CHARACTERISTIC_UUID, notification_handler)
+
+        while True:
+            await asyncio.sleep(1)
+
 
 def start_bluetooth():
-    """
-    Starts the Bluetooth connection in a way that doesn't block the entire application.
-    """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    try:
-        loop.run_until_complete(bluetooth_run())
-    except Exception as e:
-        print(f"Bluetooth thread error: {e}")
-    finally:
-        loop.close()
+    loop.run_until_complete(bluetooth_run())
 
-# Global variable to store the active Bluetooth client
-bluetooth_client = None
 
-async def get_bluetooth_client():
-    """
-    Retrieves an active Bluetooth client, creating one if necessary.
-    """
-    global bluetooth_client
-    
-    if bluetooth_client is None or not bluetooth_client.is_connected:
-        try:
-            bluetooth_client = await bluetooth_connect()
-        except Exception as e:
-            print(f"Error getting Bluetooth client: {e}")
-            return None
-    
-    return bluetooth_client
-
-# Keep the existing thread start
 if not debug_mode:
     bluetooth_thread = threading.Thread(target=start_bluetooth, daemon=True)
     bluetooth_thread.start()
