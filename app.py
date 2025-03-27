@@ -54,7 +54,7 @@ class SensorData:
             self.distance_threshold,
             self.max_detection_distance,
             self.sleep_timeout,
-        ) = struct.unpack("if", data)
+        ) = struct.unpack("ifiiii", data)
 
     def test_tick_data(self):
         delta_distance = (
