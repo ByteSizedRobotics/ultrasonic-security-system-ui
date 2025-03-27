@@ -19,7 +19,7 @@ DEVICE_ADDRESS = "18:8b:0e:a9:a8:d6"
 TEST_ANGLE_INCREMENT = 2.5
 UPDATE_INTERVAL = 125.0
 WARNING_DISTANCE = 30
-DISTANCE_RANGE = 50
+DISTANCE_RANGE = 70
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser()
@@ -340,7 +340,8 @@ def update_radar_chart(n_intervals):
             go.Scatterpolar(
                 r=sensor_data.distances,
                 theta=sensor_data.angles,
-                marker=dict(size=2, color="green"),
+                mode="markers",
+                marker=dict(size=6, color="green"),
             )
         )
 
