@@ -193,7 +193,7 @@ app.layout = dbc.Container(
     className="border border-2 border-warning p-3 rounded-3 h-100",
 ),
             ],
-            className="g-4 h-100",
+            #className="g-4 h-100",
         ),
         dcc.Interval(id="radar-interval", interval=UPDATE_INTERVAL, n_intervals=0),
     ],
