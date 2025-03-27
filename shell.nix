@@ -22,5 +22,6 @@ mkShell rec {
     pythonPackages.dash
     pythonPackages.plotly
     pythonPackages.bleak
+    pythonPackages.dash-bootstrap-components
   ];
 }

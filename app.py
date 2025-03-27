@@ -8,8 +8,10 @@ from bleak import BleakClient
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
+import dash_bootstrap_components as dbc
 import numpy as np
 import plotly.graph_objects as go
+
 
 CHARACTERISTIC_UUID = "abcdefab-1234-1234-1234-1234567890ab"
 DEVICE_ADDRESS = "18:8b:0e:a9:a8:d6"
@@ -38,17 +40,33 @@ class SensorData:
         # self.timestamps = []
         # self.timestamp_id = 0
 
+        self.motor_speed = 0
+        self.distance_threshold = 0
+        self.max_detection_distance = 0
+        self.sleep_timeout = 0
+
+    def read_data(self, data):
+        self.previous_angle = self.current_angle
+        (
+            self.current_angle,
+            self.current_distance,
+            self.motor_speed,
+            self.distance_threshold,
+            self.max_detection_distance,
+            self.sleep_timeout,
+        ) = struct.unpack("if", data)
+
     def test_tick_data(self):
         delta_distance = (
             random.randint(-3, 2)
-            if self.current_distance > 50
+            if self.current_distance > 30
             else random.randint(-2, 3)
         )
         self.current_distance = max(0, min(self.current_distance + delta_distance, 100))
         if self.move_forward:
             self.current_angle += TEST_ANGLE_INCREMENT
-            if self.current_angle >= 180.0:
-                self.current_angle = 180.0
+            if self.current_angle >= 90.0:
+                self.current_angle = 90.0
                 self.move_forward = False
         else:
             self.current_angle -= TEST_ANGLE_INCREMENT
@@ -87,29 +105,49 @@ class SensorData:
 
 sensor_data = SensorData()
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-app.layout = html.Div(
+app.layout = dbc.Container(
     [
-        html.H1("Ultrasonic Radar Map"),
-        html.Div(
-            id="warning-message",
-            style={"color": "red", "font-weight": "bold", "font-size": "18px"},
+        html.H1("Ultrasonic Radar Map", className="text-center mb-4"),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Graph(
+                        id="radar-chart",
+                        style={"height": "100%"},
+                    ),
+                    width=6,
+                    className="border border-2 border-secondary p-3 rounded-3",
+                ),
+                dbc.Col(
+                    [
+                        html.Div(id="alert-messages"),
+                    ],
+                    width=6,
+                    className="border border-2 border-awrning p-3 rounded-3 h-100",
+                ),
+            ],
+            className="g-4 h-100",
         ),
-        dcc.Graph(id="radar-chart", style={"height": "900px", "width": "50%"}),
         dcc.Interval(id="radar-interval", interval=UPDATE_INTERVAL, n_intervals=0),
-    ]
+    ],
+    fluid=True,
+    className="flex-grow-1 d-flex flex-column p-3",
+    style={
+        "backgroundColor": "#f8f9fa",
+        "margin": "0",
+        "padding": "0",
+        "height": "90vh",
+    },
 )
 
 
 def notification_handler(sender: int, data: bytearray):
     global sensor_data
-    if len(data) == 8:
+    if len(data) == 24:
         with sensor_data.lock:
-            sensor_data.previous_angle = sensor_data.current_angle
-            sensor_data.current_angle, sensor_data.current_distance = struct.unpack(
-                "if", data
-            )
+            sensor_data.read_data(data)
     else:
         print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
 
@@ -189,19 +227,63 @@ def update_radar_chart(n_intervals):
 
 
 @app.callback(
-    Output("warning-message", "children"), Input("radar-interval", "n_intervals")
+    Output("alert-messages", "children"),
+    Input("radar-interval", "n_intervals"),
 )
-def update_warning(n_intervals):
+def update_alerts(n_interval):
     global sensor_data
 
-    msg = ""
+    with sensor_data.lock:
 
-    if sensor_data.current_distance < 0:
-        msg = "Object out of range"
-    elif sensor_data.current_distance < WARNING_DISTANCE:
-        msg = "⚠️ Warning: Object too close"
+        if sensor_data.current_distance < 0:
+            object_detected_msg = "Object out of range"
+            object_detected_color = "secondary"
+            object_detected_style = {"textDecoration": "line-through", "color": "gray"}
+        elif sensor_data.current_distance < WARNING_DISTANCE:
+            object_detected_msg = "Warning: Object nearby"
+            object_detected_color = "danger"  # red color in Bootstrap
+            object_detected_style = {"fontWeight": "bold"}
+        else:
+            object_detected_msg = "No nearby objects"
+            object_detected_color = "secondary"
+            object_detected_style = {"color": "gray"}
 
-    return msg
+        # Object detection alert
+        # Create all alert components
+        alerts = [
+            dbc.Alert(
+                color=object_detected_color,
+                className="fw-bold fs-5",
+                children=object_detected_msg,
+                style=object_detected_style,
+            ),
+            dbc.Alert(
+                id="motor-speed",
+                color="dark",
+                className="fw-bold fs-5",
+                children=f"Motor speed: {sensor_data.motor_speed} RPM",
+            ),
+            dbc.Alert(
+                id="distance-threshold",
+                color="dark",
+                className="fw-bold fs-5",
+                children=f"Distance threshold: {sensor_data.distance_threshold} cm",
+            ),
+            dbc.Alert(
+                id="max-detection-distance",
+                color="dark",
+                className="fw-bold fs-5",
+                children=f"Max detection: {sensor_data.max_detection_distance} cm",
+            ),
+            dbc.Alert(
+                id="sleep-timeout",
+                color="dark",
+                className="fw-bold fs-5",
+                children=f"Sleep timeout: {sensor_data.sleep_timeout} sec",
+            ),
+        ]
+
+        return alerts
 
 
 if __name__ == "__main__":
