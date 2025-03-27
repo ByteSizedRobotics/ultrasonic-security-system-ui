@@ -23,6 +23,14 @@ UPDATE_INTERVAL = 125.0
 WARNING_DISTANCE = 30
 DISTANCE_RANGE = 70
 
+# Flag to enable sending data to ESP32
+SEND_DATA = False
+
+MOTOR_SPEED = 0
+DISTANCE_THRESHOLD = 30
+MAX_DETECTION_DISTANCE = 50
+SLEEP_TIMEOUT = 10
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -247,80 +255,81 @@ def update_selected_settings(
         value = int(button_id.split("-")[-1])
         return [dash.no_update, dash.no_update, dash.no_update, 
                 f"Selected: {value} sec"]
+                
 
-async def update_device_settings_via_bluetooth(client, speed_value, dist_value, max_detect_value, timeout_value):
-    try:
-        # Pack the data into a struct (matching the expected format on the device)
-        data = struct.pack("iiii", speed_value, dist_value, max_detect_value, timeout_value)
-        
-        # Send the data over Bluetooth
-        await client.write_gatt_char(RX_CHARACTERISTIC_UUID, data, response=True)
-        print("Sent device settings via Bluetooth:")
-        print(f"Alarm Trigger Distance: {dist_value} cm")
-        print(f"Motor Speed Mode: {speed_value}")
-        print(f"Max Object Detection Distance: {max_detect_value} cm")
-        print(f"Sleep Timeout: {timeout_value} sec")
-        
-        return "Settings updated successfully via Bluetooth!", {"color": "green", "fontWeight": "bold"}
-    except Exception as e:
-        return f"Error updating settings via Bluetooth: {str(e)}", {"color": "red", "fontWeight": "bold"}
+# def notification_handler(sender: int, data: bytearray):
+#     global sensor_data
+#     if len(data) == 24:
+        # with sensor_data.lock:
+        #     sensor_data.read_data(data)
+#     else:
+#         print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
 
 @app.callback(
     [Output("settings-update-status", "children"),
      Output("settings-update-status", "style")],
     Input("update-settings-btn", "n_clicks"),
     [
-        State("selected-dist-threshold", "children"),
         State("selected-motor-speed", "children"),
+        State("selected-dist-threshold", "children"),
         State("selected-max-detect", "children"),
         State("selected-sleep-timeout", "children")
     ],
     prevent_initial_call=True
 )
-def update_device_settings(n_clicks, dist_threshold, motor_speed, max_detect, sleep_timeout):
-    try:
-        dist_value = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else 30
-        speed_value = 1 if "Fast" in motor_speed else 0
-        max_detect_value = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 250
-        timeout_value = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else 10
+def update_settings(n_clicks, motor_speed, dist_threshold, max_detect, sleep_timeout):
+    global MOTOR_SPEED, DISTANCE_THRESHOLD, MAX_DETECTION_DISTANCE, SLEEP_TIMEOUT, SEND_DATA
+    DISTANCE_THRESHOLD = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else 30
+    MOTOR_SPEED = 1 if "Fast" in motor_speed else 0 
+    MAX_DETECTION_DISTANCE = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 250
+    SLEEP_TIMEOUT = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else 10
 
-        # Start Bluetooth communication in a separate thread
-        if not debug_mode:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            client = BleakClient(DEVICE_ADDRESS)
-            loop.run_until_complete(client.connect())
-            result = loop.run_until_complete(update_device_settings_via_bluetooth(client, speed_value, dist_value, max_detect_value, timeout_value))
-            loop.run_until_complete(client.disconnect())
-            return result
-        else:
-            print("Debug Mode: Settings update simulated.")
-            return "Settings updated in debug mode!", {"color": "blue", "fontWeight": "bold"}
-    except Exception as e:
-        return f"Error updating settings: {str(e)}", {"color": "red", "fontWeight": "bold"}
+    SEND_DATA = True
 
-def notification_handler(sender: int, data: bytearray):
-    global sensor_data
-    if len(data) == 24:
-        with sensor_data.lock:
-            sensor_data.read_data(data)
-    else:
-        print(f"Warning: Received unexpected data length {len(data)} bytes: {data}")
+    return "Settings updated successfully via Bluetooth!", {"color": "green", "fontWeight": "bold"}
 
 
-async def bluetooth_run():
+async def ble_client():
+    global MOTOR_SPEED, DISTANCE_THRESHOLD, MAX_DETECTION_DISTANCE, SLEEP_TIMEOUT, SEND_DATA
     async with BleakClient(DEVICE_ADDRESS) as client:
-        print(f"Connected: {client.is_connected}")
+        print("Connected to ESP32!")
+
+        # Function to send data
+        async def send_data(angle, distance, motor_speed, alarm_threshold):
+            # Pack the data into a 16-byte structure (4x 4-byte values)
+            tx_data = struct.pack("iiii", angle, distance, motor_speed, alarm_threshold)
+
+            # Send the packed data to ESP32
+            await client.write_gatt_char(RX_CHARACTERISTIC_UUID, tx_data, response=True)
+            print(f"Sent: Angle={angle}, Distance={distance}, Motor Speed={motor_speed}, Alarm Threshold={alarm_threshold}")
+
+        # Callback function for receiving data
+        def notification_handler(sender, data):
+            # Unpack received 24-byte structure
+            # angle, distance, motor_speed, alarm_threshold, max_distance, sleep_timeout = struct.unpack("ifiiii", data)
+            global sensor_data
+            if len(data) == 24:
+                with sensor_data.lock:
+                    sensor_data.read_data(data)
+            # print(f"Received: Angle={angle}, Distance={distance:.2f} cm")
+            # print(f"Motor Speed={motor_speed}, Alarm Threshold={alarm_threshold}, Max Distance={max_distance}, Sleep Timeout={sleep_timeout}")
+
+        # Subscribe to notifications
         await client.start_notify(TX_CHARACTERISTIC_UUID, notification_handler)
 
-        while True:
-            await asyncio.sleep(1)
+        # Keep running to receive notifications indefinitely
+        print("Listening for BLE data...")
 
+        # Loop to check if a key is pressed to send data
+        while True:
+            if SEND_DATA:
+                # Send data to ESP32
+                await send_data(MOTOR_SPEED, DISTANCE_THRESHOLD, MAX_DETECTION_DISTANCE, SLEEP_TIMEOUT)
+                SEND_DATA = False
+            await asyncio.sleep(1)  # Adjust as needed for your needs
 
 def start_bluetooth():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(bluetooth_run())
+    asyncio.run(ble_client())
 
 
 if not debug_mode:
