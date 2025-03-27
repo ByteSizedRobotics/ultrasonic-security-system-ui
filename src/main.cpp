@@ -15,6 +15,14 @@ class MyCallbacks : public BLECharacteristicCallbacks {
         
         if (receivedValue.length() >= 16) { // Expecting at least 16 bytes
             Serial.print("Received from Python: ");
+            
+            int value1, value2, value3, value4;
+            memcpy(&value1, receivedValue.data(), sizeof(value1));
+            memcpy(&value2, receivedValue.data() + sizeof(value1), sizeof(value2));
+            memcpy(&value3, receivedValue.data() + sizeof(value1) + sizeof(value2), sizeof(value3));
+            memcpy(&value4, receivedValue.data() + sizeof(value1) + sizeof(value2) + sizeof(value3), sizeof(value4));
+
+            Serial.printf("Value1 = %d, Value2 = %d, Value3 = %d, Value4 = %d\n", value1, value2, value3, value4);
 
             // Forward the raw bytes to Serial1
             Serial1.write((uint8_t*)receivedValue.data(), receivedValue.length());
@@ -72,8 +80,8 @@ void loop() {
         memcpy(&max_distance, data + sizeof(angle) + sizeof(distance) + sizeof(motor_speed) + sizeof(alarm_threshold), sizeof(max_distance));
         memcpy(&sleep_timeout, data + sizeof(angle) + sizeof(distance) + sizeof(motor_speed) + sizeof(alarm_threshold) + sizeof(max_distance), sizeof(sleep_timeout));
 
-        Serial.printf("Received: Angle = %d, Distance = %.2f cm\n", angle, distance);
-        Serial.printf("Motor Speed = %d, Alarm Threshold = %d, Max Distance = %d, Sleep Timeout = %d\n", motor_speed, alarm_threshold, max_distance, sleep_timeout);
+        // Serial.printf("Received: Angle = %d, Distance = %.2f cm\n", angle, distance);
+        // Serial.printf("Motor Speed = %d, Alarm Threshold = %d, Max Distance = %d, Sleep Timeout = %d\n", motor_speed, alarm_threshold, max_distance, sleep_timeout);
     }
 
     delay(10);
