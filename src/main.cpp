@@ -67,6 +67,7 @@ void setup() {
 
 void loop() {
     uint8_t data[24];
+    // sending
     if (Serial1.available() >= 24) {
         Serial1.readBytes(data, 24);
 
@@ -74,10 +75,7 @@ void loop() {
         pCharacteristic->setValue(data, sizeof(data));
         pCharacteristic->notify();
 
-        // Debugging: Print received data
-        int angle;
-        float distance;
-              // Used for debugging (displays the different fields of the received data)
+        // Used for debugging (displays the different fields of the received data)
         int angle;
         float distance;
         int motor_speed, alarm_threshold, max_distance, sleep_timeout;
