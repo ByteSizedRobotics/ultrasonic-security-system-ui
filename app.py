@@ -162,8 +162,8 @@ app.layout = dbc.Container(
         html.Div([
             html.Label("Max Detection Distance (cm)  :", className="me-2"),
             dbc.ButtonGroup([
-                dbc.Button("250 cm", id="max-detect-250", color="secondary", outline=True),
-                dbc.Button("400 cm", id="max-detect-400", color="secondary", outline=True),
+                dbc.Button("50 cm", id="max-detect-50", color="secondary", outline=True),
+                dbc.Button("150 cm", id="max-detect-150", color="secondary", outline=True),
             ], className="mb-3"),
             html.Div(id="selected-max-detect", className="text-muted mb-3")
         ]),
@@ -213,7 +213,7 @@ app.layout = dbc.Container(
     [Input(f"{setting}-{value}", "n_clicks") for setting, values in [
         ("dist-threshold", [10, 30, 50, 100]),
         ("motor-speed", ["normal", "fast"]),
-        ("max-detect", [250, 400]),
+        ("max-detect", [50, 150]),
         ("sleep-timeout", [2, 5, 10, 30])
     ] for value in values],
     prevent_initial_call=True
@@ -221,7 +221,7 @@ app.layout = dbc.Container(
 def update_selected_settings(
     dist_10, dist_30, dist_50, dist_100,
     speed_normal, speed_fast,
-    max_250, max_400,
+    max_50, max_150,
     timeout_2, timeout_5, timeout_10, timeout_30
 ):
     ctx = dash.callback_context
@@ -281,7 +281,7 @@ def update_settings(n_clicks, motor_speed, dist_threshold, max_detect, sleep_tim
     global MOTOR_SPEED, DISTANCE_THRESHOLD, MAX_DETECTION_DISTANCE, SLEEP_TIMEOUT, SEND_DATA
     DISTANCE_THRESHOLD = int(dist_threshold.split(": ")[-1].split()[0]) if dist_threshold else 30
     MOTOR_SPEED = 1 if "Fast" in motor_speed else 0 
-    MAX_DETECTION_DISTANCE = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 250
+    MAX_DETECTION_DISTANCE = int(max_detect.split(": ")[-1].split()[0]) if max_detect else 50
     SLEEP_TIMEOUT = int(sleep_timeout.split(": ")[-1].split()[0]) if sleep_timeout else 10
 
     SEND_DATA = True
@@ -384,7 +384,7 @@ def update_radar_chart(n_intervals):
         fig.update_layout(
             polar=dict(
                 sector=[0, 90],
-                radialaxis=dict(visible=True, range=[0, DISTANCE_RANGE]),
+                radialaxis=dict(visible=True, range=[0, MAX_DETECTION_DISTANCE + 20]),
             ),
             showlegend=False,
         )
