@@ -405,7 +405,7 @@ def update_alerts(n_interval):
             object_detected_msg = "Object out of range"
             object_detected_color = "secondary"
             object_detected_style = {"textDecoration": "line-through", "color": "gray"}
-        elif sensor_data.current_distance < WARNING_DISTANCE:
+        elif sensor_data.current_distance < DISTANCE_THRESHOLD:
             object_detected_msg = "Warning: Object nearby"
             object_detected_color = "danger"  # red color in Bootstrap
             object_detected_style = {"fontWeight": "bold"}
